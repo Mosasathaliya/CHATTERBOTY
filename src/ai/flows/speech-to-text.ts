@@ -1,6 +1,6 @@
 'use server';
 /**
- * @fileOverview A flow for converting speech to text, with support for streaming.
+ * @fileOverview A flow for converting speech to text.
  *
  * - speechToText - A function that takes audio data and returns the transcribed text.
  * - SpeechToTextInput - The input type for the speechToTtext function.
@@ -19,12 +19,6 @@ const SpeechToTextInputSchema = z.object({
   mimeType: z
     .string()
     .describe('The MIME type of the audio data (e.g., "audio/webm").'),
-  onChunk: z
-    .function()
-    .args(z.string())
-    .returns(z.void())
-    .optional()
-    .describe('A callback function to handle streaming text chunks.'),
 });
 export type SpeechToTextInput = z.infer<typeof SpeechToTextInputSchema>;
 
@@ -45,12 +39,12 @@ const speechToTextFlow = ai.defineFlow(
     inputSchema: SpeechToTextInputSchema,
     outputSchema: SpeechToTextOutputSchema,
   },
-  async ({audioDataUri, mimeType, onChunk}) => {
+  async ({audioDataUri, mimeType}) => {
     const {stream, response} = ai.generateStream({
       model: 'googleai/gemini-1.5-pro-latest',
       prompt: [
         {media: {url: audioDataUri, contentType: mimeType}},
-        {text: 'Transcribe the audio. The transcription should not include any introductory text or labels, only the spoken words.'},
+        {text: 'Transcribe the audio.'},
       ],
       config: {
         temperature: 0.1,
@@ -62,7 +56,6 @@ const speechToTextFlow = ai.defineFlow(
       const text = chunk.text;
       if (text) {
         fullText += text;
-        onChunk?.(text);
       }
     }
 
@@ -70,7 +63,6 @@ const speechToTextFlow = ai.defineFlow(
     const finalText = finalResponse.text;
 
     if (finalText && finalText.trim().length > fullText.trim().length) {
-      onChunk?.(finalText.substring(fullText.length));
       return {text: finalText};
     }
 

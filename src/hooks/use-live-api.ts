@@ -153,6 +153,7 @@ export function useLiveApi() {
         return;
     }
     setConnectionState('processing');
+    setTranscribedText('Processing...');
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64data = reader.result as string;
@@ -160,13 +161,13 @@ export function useLiveApi() {
         const { text } = await speechToText({ 
           audioDataUri: base64data,
           mimeType: mimeTypeRef.current,
-          onChunk: (chunk) => setTranscribedText(prev => prev + chunk)
         });
 
         if (text && text.trim()) {
           setTranscribedText(text);
           await processAndRespond(text);
         } else {
+          setTranscribedText('');
           toast({ title: "I didn't catch that", description: "Could you please try again?", variant: "default" });
           setConnectionState('listening');
         }
@@ -181,10 +182,9 @@ export function useLiveApi() {
 
   const startRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'inactive' && !isMuted) {
-        setTranscribedText('');
+        setTranscribedText('Listening...');
         audioChunksRef.current = [];
         mediaRecorderRef.current.start(100); // Collect data in chunks
-        setConnectionState('listening');
     }
   }, [isMuted]);
 
@@ -196,7 +196,6 @@ export function useLiveApi() {
       userMediaStreamRef.current = stream;
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       
-      // VAD setup
       const source = audioContextRef.current.createMediaStreamSource(stream);
       processorNodeRef.current = audioContextRef.current.createScriptProcessor(1024, 1, 1);
       source.connect(processorNodeRef.current);
@@ -248,9 +247,7 @@ export function useLiveApi() {
       
       setConnectionState('connected');
       setError(null);
-      toast({ title: "Connected", description: "Agent is ready." });
       
-      // Start with agent greeting, then transition to listening
       const agent = getAgentById(currentAgentId);
       const initialGreeting = "Hello! How can I help you today?";
       const { audioDataUri } = await textToSpeech({ text: initialGreeting, voice: agent?.voice || 'Zephyr' });
@@ -298,7 +295,6 @@ export function useLiveApi() {
   };
   
   const stopListeningAndProcessManual = () => {
-      // Manual override if VAD doesn't work as expected
       if (connectionState === 'listening' && isSpeakingRef.current) {
           stopRecordingAndProcess();
       }
@@ -306,10 +302,12 @@ export function useLiveApi() {
 
   useEffect(() => {
     return () => {
-        // This cleanup runs only when the component unmounts.
+      if (connectionState !== 'disconnected') {
         disconnect();
+      }
     };
-  }, []); // Empty dependency array is crucial here.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return { 
     connectionState, 
