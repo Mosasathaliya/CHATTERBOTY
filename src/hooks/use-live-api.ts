@@ -203,7 +203,7 @@ export function useLiveApi() {
       processorNodeRef.current.connect(audioContextRef.current.destination);
       
       processorNodeRef.current.onaudioprocess = (e) => {
-        if (isMuted) return;
+        if (isMuted || connectionState === 'speaking' || connectionState === 'processing') return;
 
         const inputData = e.inputBuffer.getChannelData(0);
         let sum = 0.0;
@@ -263,7 +263,7 @@ export function useLiveApi() {
       toast({ title: "Error", description: errorMessage, variant: "destructive" });
       setConnectionState('disconnected');
     }
-  }, [toast, currentAgentId, getAgentById, playAudio, handleAudioProcessing, startRecording, stopRecordingAndProcess, isMuted]);
+  }, [toast, currentAgentId, getAgentById, playAudio, handleAudioProcessing, startRecording, stopRecordingAndProcess, isMuted, connectionState]);
 
   const disconnect = useCallback(() => {
     if (connectionState === 'disconnected') return;
@@ -306,11 +306,10 @@ export function useLiveApi() {
 
   useEffect(() => {
     return () => {
-        if (connectionState !== 'disconnected') {
-            disconnect();
-        }
+        // This cleanup runs only when the component unmounts.
+        disconnect();
     };
-  }, [connectionState, disconnect]);
+  }, []); // Empty dependency array is crucial here.
 
   return { 
     connectionState, 
@@ -326,5 +325,3 @@ export function useLiveApi() {
     handleMainButton,
   };
 }
-
-    
