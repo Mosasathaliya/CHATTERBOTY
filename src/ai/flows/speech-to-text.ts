@@ -69,15 +69,16 @@ const speechToTextFlow = ai.defineFlow(
       }
     }
 
-    // A final check on the completed response object in case of non-streaming results.
     const finalResponse = await response;
     const finalText = finalResponse.text;
 
-    if (!fullText && finalText) {
-      onChunk?.(finalText);
+    if (finalText && finalText.trim().length > fullText.trim().length) {
+      onChunk?.(finalText.substring(fullText.length));
       return {text: finalText};
     }
 
     return {text: fullText};
   }
 );
+
+    

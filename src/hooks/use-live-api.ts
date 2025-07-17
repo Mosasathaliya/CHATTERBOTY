@@ -75,30 +75,39 @@ export function useLiveApi() {
     
     setConnectionState('speaking');
 
-    const response = await fetch(audioDataUri);
-    const arrayBuffer = await response.arrayBuffer();
-    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    try {
+        const response = await fetch(audioDataUri);
+        const arrayBuffer = await response.arrayBuffer();
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-    agentAnalyserRef.current = audioContext.createAnalyser();
-    agentAnalyserRef.current.fftSize = 256;
+        agentAnalyserRef.current = audioContext.createAnalyser();
+        agentAnalyserRef.current.fftSize = 256;
 
-    agentAudioSourceRef.current = audioContext.createBufferSource();
-    agentAudioSourceRef.current.buffer = audioBuffer;
-    agentAudioSourceRef.current.connect(agentAnalyserRef.current);
-    agentAnalyserRef.current.connect(audioContext.destination);
+        agentAudioSourceRef.current = audioContext.createBufferSource();
+        agentAudioSourceRef.current.buffer = audioBuffer;
+        agentAudioSourceRef.current.connect(agentAnalyserRef.current);
+        agentAnalyserRef.current.connect(audioContext.destination);
 
-    agentAudioSourceRef.current.start();
-    getAgentVolume();
+        agentAudioSourceRef.current.start();
+        getAgentVolume();
 
-    agentAudioSourceRef.current.onended = () => {
-      cleanupAgentAudio();
-      startListening();
-    };
-  }, [cleanupAgentAudio, getAgentVolume, startListening]);
+        agentAudioSourceRef.current.onended = () => {
+          cleanupAgentAudio();
+          startListening();
+        };
+    } catch (err: any) {
+        console.error("Error playing audio:", err);
+        const errorMessage = err.message || "An unexpected error occurred while playing audio.";
+        setError(errorMessage);
+        toast({ title: "Audio Playback Error", description: errorMessage, variant: "destructive" });
+        startListening();
+    }
+  }, [cleanupAgentAudio, getAgentVolume, startListening, toast]);
 
   const processAndRespond = useCallback(async (userInput: string) => {
     try {
       if (!userInput.trim()) {
+        toast({ title: "I didn't catch that", description: "Could you please try again?", variant: "default" });
         startListening();
         return;
       };
@@ -149,7 +158,9 @@ export function useLiveApi() {
             setTranscribedText(prev => prev + chunk);
           }
         });
-        if (text) {
+
+        if (text && text.trim()) {
+          setTranscribedText(text); // Set final text
           await processAndRespond(text);
         } else {
           toast({ title: "I didn't catch that", description: "Could you please try again?", variant: "default" });
@@ -157,7 +168,8 @@ export function useLiveApi() {
         }
       } catch (err: any) {
         console.error("Error in speech-to-text:", err);
-        setError("Failed to process audio. Please try again.");
+        const errorMessage = "Failed to process audio. " + (err.message || "Please try again.");
+        setError(errorMessage);
         toast({ title: "Speech-to-Text Error", description: err.message, variant: "destructive" });
         startListening();
       }
@@ -181,6 +193,10 @@ export function useLiveApi() {
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       
       const options = { mimeType: 'audio/webm;codecs=opus' };
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+          console.warn(`${options.mimeType} is not supported. Falling back to default.`);
+          options.mimeType = 'audio/webm';
+      }
       mediaRecorderRef.current = new MediaRecorder(stream, options);
       mimeTypeRef.current = options.mimeType;
 
@@ -191,9 +207,10 @@ export function useLiveApi() {
       };
       mediaRecorderRef.current.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeTypeRef.current });
-        if (audioBlob.size > 1000) { // Check for minimal size to avoid processing empty blobs
+        if (audioBlob.size > 1000) {
           handleAudioProcessing(audioBlob);
         } else {
+          toast({title: "No speech detected", description: "The recording was empty."});
           startListening();
         }
       };
@@ -246,7 +263,7 @@ export function useLiveApi() {
             toast({ title: "Unmuted", description: "The agent can hear you again." });
             if(mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') {
                 mediaRecorderRef.current.resume();
-            } else if (connectionState === 'listening' || connectionState === 'connected' || connectionState === 'speaking') {
+            } else if (connectionState === 'listening' || connectionState === 'speaking') {
                 startListening();
             }
         }
@@ -256,9 +273,14 @@ export function useLiveApi() {
 
   useEffect(() => {
     return () => {
-        disconnect();
+        if (connectionState !== 'disconnected') {
+            disconnect();
+        }
     };
-  }, [disconnect]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return { connectionState, isMuted, isTalking: connectionState === 'speaking', volume, error, connect, disconnect, toggleMute, stopListeningAndProcess, transcribedText };
 }
+
+    
