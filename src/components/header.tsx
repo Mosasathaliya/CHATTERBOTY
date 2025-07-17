@@ -27,7 +27,7 @@ export default function Header() {
       name: 'New Agent',
       personality: 'A blank slate, ready for a new personality.',
       bodyColor: '#cccccc',
-      voice: 'alloy',
+      voice: 'Zephyr',
       isPreset: false,
     };
     addPersonalAgent(newAgent);

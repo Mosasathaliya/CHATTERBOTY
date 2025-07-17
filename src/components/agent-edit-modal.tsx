@@ -39,7 +39,7 @@ export default function AgentEditModal() {
       name: '',
       personality: '',
       bodyColor: '#ffffff',
-      voice: 'alloy',
+      voice: 'Zephyr',
     },
   });
 

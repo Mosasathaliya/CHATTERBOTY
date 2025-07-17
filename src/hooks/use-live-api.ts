@@ -103,7 +103,7 @@ export function useLiveApi() {
 
       const { audioDataUri } = await textToSpeech({
         text: personalizedResponse,
-        voice: agent.voice.charAt(0).toUpperCase() + agent.voice.slice(1), // Capitalize first letter for API
+        voice: agent.voice,
       });
       
       playAudio(audioDataUri);
