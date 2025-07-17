@@ -1,4 +1,5 @@
-// 'use server';
+// src/ai/flows/personalize-agent-response.ts
+'use server';
 /**
  * @fileOverview An AI agent that personalizes responses based on a defined personality.
  *
@@ -6,8 +7,6 @@
  * - PersonalizeAgentResponseInput - The input type for the personalizeAgentResponse function.
  * - PersonalizeAgentResponseOutput - The return type for the personalizeAgentResponse function.
  */
-
-'use server';
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';

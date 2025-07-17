@@ -53,7 +53,7 @@ const speechToTextFlow = ai.defineFlow(
     });
 
     return {
-      text: output as string,
+      text: (output as string) || '',
     };
   }
 );
