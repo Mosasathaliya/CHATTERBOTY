@@ -152,7 +152,7 @@ export function useLiveApi() {
         if (text) {
           await processAndRespond(text);
         } else {
-          toast({ title: "No speech detected", description: "I didn't catch that. Could you please try again?", variant: "default" });
+          toast({ title: "I didn't catch that", description: "Could you please try again?", variant: "default" });
           startListening();
         }
       } catch (err: any) {
@@ -194,7 +194,6 @@ export function useLiveApi() {
         if (audioBlob.size > 1000) { // Check for minimal size to avoid processing empty blobs
           handleAudioProcessing(audioBlob);
         } else {
-          toast({ title: "No speech detected", description: "Recording was too short. Please try again.", variant: "default" });
           startListening();
         }
       };
