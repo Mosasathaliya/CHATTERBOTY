@@ -115,8 +115,8 @@ export function useLiveApi() {
 
       const { personalizedResponse } = response;
       conversationHistory.current.push(`Agent: ${personalizedResponse}`);
-      if (conversationHistory.current.length > 4) {
-        conversationHistory.current = conversationHistory.current.slice(-4);
+      if (conversationHistory.current.length > 8) {
+        conversationHistory.current = conversationHistory.current.slice(-8);
       }
 
       const { audioDataUri } = await textToSpeech({ text: personalizedResponse, voice: agent.voice });
@@ -127,8 +127,8 @@ export function useLiveApi() {
       console.error("Error in conversation:", err);
       const errorMessage = err.message || "An unexpected error occurred during the conversation.";
       setError(errorMessage);
-      setConnectionState('connected');
       toast({ title: "Conversation Error", description: errorMessage, variant: "destructive" });
+      startListening();
     }
   }, [currentAgentId, getAgentById, userName, userDescription, toast, playAudio, startListening]);
 
@@ -150,7 +150,7 @@ export function useLiveApi() {
         console.error("Error in speech-to-text:", err);
         setError("Failed to process audio. Please try again.");
         toast({ title: "Speech-to-Text Error", description: err.message, variant: "destructive" });
-        setConnectionState('connected');
+        startListening();
       }
     };
     reader.readAsDataURL(audioBlob);
@@ -179,7 +179,7 @@ export function useLiveApi() {
       };
       mediaRecorderRef.current.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        if (audioBlob.size > 100) {
+        if (audioBlob.size > 100) { // Check for minimal size to avoid processing empty blobs
           handleAudioProcessing(audioBlob);
         } else {
           startListening();
@@ -231,7 +231,7 @@ export function useLiveApi() {
             }
         } else {
             toast({ title: "Unmuted", description: "The agent can hear you again." });
-            if(connectionState === 'listening'){
+            if(connectionState === 'listening' || connectionState === 'connected' || connectionState === 'speaking'){
                 startListening();
             }
         }
