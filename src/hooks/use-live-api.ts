@@ -26,7 +26,8 @@ export function useLiveApi() {
   const userAnalyserRef = useRef<AnalyserNode | null>(null);
   const agentAnalyserRef = useRef<AnalyserNode | null>(null);
   const agentAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
+  const userMediaStreamRef = useRef<MediaStream | null>(null);
+  const animationFrameId = useRef<number | null>(null);
   const conversationHistory = useRef<string[]>([]);
   
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -34,10 +35,14 @@ export function useLiveApi() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
+  const monitorUserSilenceRef = useRef<() => void>(() => {});
+  const stopRecordingRef = useRef<() => void>(() => {});
+  const startRecordingRef = useRef<((stream: MediaStream) => void)>(() => {});
+
   const cleanupAgentAudio = useCallback(() => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
+    if (animationFrameId.current) {
+      cancelAnimationFrame(animationFrameId.current);
+      animationFrameId.current = null;
     }
     if (agentAudioSourceRef.current) {
       agentAudioSourceRef.current.stop();
@@ -58,7 +63,7 @@ export function useLiveApi() {
       }
       const newVolume = Math.sqrt(sum / dataArray.length);
       setVolume(newVolume);
-      animationFrameRef.current = requestAnimationFrame(getAgentVolume);
+      animationFrameId.current = requestAnimationFrame(getAgentVolume);
     }
   }, []);
 
@@ -86,12 +91,17 @@ export function useLiveApi() {
     agentAudioSourceRef.current.onended = () => {
       cleanupAgentAudio();
       isProcessingRef.current = false;
+      monitorUserSilenceRef.current(); // Start listening after agent finishes talking.
     };
   }, [cleanupAgentAudio, getAgentVolume]);
 
   const processAndRespond = useCallback(async (userInput: string) => {
     try {
-      if (!userInput.trim()) return;
+      if (!userInput.trim()) {
+        isProcessingRef.current = false;
+        monitorUserSilenceRef.current();
+        return;
+      };
 
       const agent = getAgentById(currentAgentId);
       if (!agent) throw new Error('Agent not found');
@@ -124,6 +134,7 @@ export function useLiveApi() {
     }
   }, [currentAgentId, getAgentById, userName, userDescription, toast, playAudio]);
 
+
   const handleAudioProcessing = useCallback(async (audioBlob: Blob) => {
     isProcessingRef.current = true;
     const reader = new FileReader();
@@ -135,6 +146,7 @@ export function useLiveApi() {
           await processAndRespond(text);
         } else {
           isProcessingRef.current = false; // No speech detected
+          monitorUserSilenceRef.current();
         }
       } catch (err: any) {
         console.error("Error in speech-to-text:", err);
@@ -145,89 +157,95 @@ export function useLiveApi() {
     reader.readAsDataURL(audioBlob);
   }, [processAndRespond, toast]);
 
-  const startRecording = useCallback((stream: MediaStream) => {
-    if (!mediaRecorderRef.current || mediaRecorderRef.current.state === 'inactive') {
-      mediaRecorderRef.current = new MediaRecorder(stream);
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-      mediaRecorderRef.current.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        audioChunksRef.current = [];
-        if (audioBlob.size > 100) { // Only process if there's some audio data
-          handleAudioProcessing(audioBlob);
-        } else {
-            isProcessingRef.current = false;
-        }
-      };
-      mediaRecorderRef.current.start(250); // Collect data in chunks
-    }
-  }, [handleAudioProcessing]);
-
-  const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.stop();
-    }
-  }, []);
-
-  const monitorUserSilence = useCallback((stream: MediaStream) => {
-    if (!audioContextRef.current) return;
-    const source = audioContextRef.current.createMediaStreamSource(stream);
-    userAnalyserRef.current = audioContextRef.current.createAnalyser();
-    userAnalyserRef.current.fftSize = 256;
-    source.connect(userAnalyserRef.current);
-    
-    const checkSilence = () => {
-      if (isProcessingRef.current || isTalking || isMuted) {
-        requestAnimationFrame(checkSilence);
-        return;
+  useEffect(() => {
+    startRecordingRef.current = (stream: MediaStream) => {
+      if (!mediaRecorderRef.current || mediaRecorderRef.current.state === 'inactive') {
+        mediaRecorderRef.current = new MediaRecorder(stream);
+        mediaRecorderRef.current.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
+        };
+        mediaRecorderRef.current.onstop = () => {
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          audioChunksRef.current = [];
+          if (audioBlob.size > 100) { // Only process if there's some audio data
+            handleAudioProcessing(audioBlob);
+          } else {
+              isProcessingRef.current = false;
+          }
+        };
+        mediaRecorderRef.current.start(250); // Collect data in chunks
       }
-
-      if (userAnalyserRef.current) {
-        const dataArray = new Uint8Array(userAnalyserRef.current.frequencyBinCount);
-        userAnalyserRef.current.getByteTimeDomainData(dataArray);
-        let sum = 0;
-        for (const amp of dataArray) {
-            sum += Math.pow(amp / 128.0 - 1, 2);
-        }
-        const rms = Math.sqrt(sum / dataArray.length);
-
-        if (rms < SILENCE_THRESHOLD) {
-            if (!silenceTimerRef.current) {
-                silenceTimerRef.current = setTimeout(() => {
-                    stopRecording();
-                    silenceTimerRef.current = null;
-                }, SILENCE_DURATION_MS);
-            }
-        } else {
-            if (silenceTimerRef.current) {
-                clearTimeout(silenceTimerRef.current);
-                silenceTimerRef.current = null;
-            }
-            startRecording(stream);
-        }
-      }
-      requestAnimationFrame(checkSilence);
     };
 
-    checkSilence();
-  }, [isMuted, isTalking, startRecording, stopRecording]);
+    stopRecordingRef.current = () => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop();
+      }
+    };
+
+    monitorUserSilenceRef.current = () => {
+      if (!audioContextRef.current || !userMediaStreamRef.current) return;
+      const stream = userMediaStreamRef.current;
+      
+      if (!userAnalyserRef.current) {
+        const source = audioContextRef.current.createMediaStreamSource(stream);
+        userAnalyserRef.current = audioContextRef.current.createAnalyser();
+        userAnalyserRef.current.fftSize = 256;
+        source.connect(userAnalyserRef.current);
+      }
+      
+      const checkSilence = () => {
+        if (isProcessingRef.current || isTalking || isMuted) {
+          requestAnimationFrame(checkSilence);
+          return;
+        }
+  
+        if (userAnalyserRef.current) {
+          const dataArray = new Uint8Array(userAnalyserRef.current.frequencyBinCount);
+          userAnalyserRef.current.getByteTimeDomainData(dataArray);
+          let sum = 0;
+          for (const amp of dataArray) {
+              sum += Math.pow(amp / 128.0 - 1, 2);
+          }
+          const rms = Math.sqrt(sum / dataArray.length);
+  
+          if (rms < SILENCE_THRESHOLD) {
+              if (!silenceTimerRef.current) {
+                  silenceTimerRef.current = setTimeout(() => {
+                      stopRecordingRef.current();
+                      silenceTimerRef.current = null;
+                  }, SILENCE_DURATION_MS);
+              }
+          } else {
+              if (silenceTimerRef.current) {
+                  clearTimeout(silenceTimerRef.current);
+                  silenceTimerRef.current = null;
+              }
+              startRecordingRef.current(stream);
+          }
+        }
+        requestAnimationFrame(checkSilence);
+      };
+      checkSilence();
+    };
+  }, [isMuted, isTalking, handleAudioProcessing]);
+
 
   const connect = useCallback(async () => {
     if (isConnected) return;
     console.log('Connecting...');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      userMediaStreamRef.current = stream;
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       setIsConnected(true);
       setError(null);
       toast({ title: "Connected", description: "You can start talking now." });
       conversationHistory.current = [];
       
-      await processAndRespond("Hello!"); // Start with a greeting
-      monitorUserSilence(stream);
+      await processAndRespond("Hello!");
 
     } catch (err) {
       console.error("Microphone access denied:", err);
@@ -235,33 +253,35 @@ export function useLiveApi() {
       setError(errorMessage);
       toast({ title: "Error", description: errorMessage, variant: "destructive" });
     }
-  }, [toast, isConnected, processAndRespond, monitorUserSilence]);
+  }, [toast, isConnected, processAndRespond]);
 
   const disconnect = useCallback(() => {
     console.log('Disconnecting...');
-    stopRecording();
+    stopRecordingRef.current();
     cleanupAgentAudio();
-    if (mediaRecorderRef.current && mediaRecorderRef.current.stream) {
-        mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+    if (userMediaStreamRef.current) {
+        userMediaStreamRef.current.getTracks().forEach(track => track.stop());
+        userMediaStreamRef.current = null;
     }
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
         audioContextRef.current.close();
         audioContextRef.current = null;
     }
+    userAnalyserRef.current = null;
     setIsConnected(false);
     toast({ title: "Disconnected" });
-  }, [toast, cleanupAgentAudio, stopRecording]);
+  }, [toast, cleanupAgentAudio]);
 
   const toggleMute = useCallback(() => {
     if (isMuted) {
       toast({ title: "Unmuted", description: "The agent can hear you again." });
     } else {
       toast({ title: "Muted", description: "The agent can't hear you." });
-      stopRecording();
+      stopRecordingRef.current();
       if(silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
     }
     setIsMuted(m => !m);
-  }, [isMuted, stopRecording, toast]);
+  }, [isMuted, toast]);
 
   useEffect(() => {
     return () => {
