@@ -9,7 +9,6 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import {generate} from 'genkit';
 
 const SpeechToTextInputSchema = z.object({
   audioDataUri: z
@@ -47,7 +46,7 @@ const speechToTextFlow = ai.defineFlow(
     outputSchema: SpeechToTextOutputSchema,
   },
   async ({audioDataUri, mimeType, onChunk}) => {
-    const {stream, response} = generate({
+    const {stream, response} = ai.generate({
       model: 'googleai/gemini-1.5-pro-latest',
       prompt: {
         media: {
