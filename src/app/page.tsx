@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -13,7 +14,18 @@ import TranscriptionDisplay from '@/components/transcription-display';
 
 export default function Home() {
   const { showUserConfig, showAgentEdit, setShowUserConfig } = useUIStore();
-  const { connectionState, isTalking, volume, error, connect, disconnect, toggleMute, isMuted, stopListeningAndProcess, transcribedText } = useLiveApi();
+  const { 
+    connectionState, 
+    isTalking, 
+    volume, 
+    error, 
+    toggleMute, 
+    isMuted, 
+    transcribedText,
+    handleMainButton,
+    stopListeningAndProcess
+  } = useLiveApi();
+  
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
@@ -27,16 +39,6 @@ export default function Home() {
 
   if (!isClient) {
     return null;
-  }
-  
-  const handleMainButton = () => {
-    if (connectionState === 'disconnected') {
-      connect();
-    } else if (connectionState === 'listening') {
-      stopListeningAndProcess();
-    } else {
-      disconnect();
-    }
   }
 
   return (
@@ -52,9 +54,12 @@ export default function Home() {
         isMuted={isMuted}
         onMainButton={handleMainButton}
         onMuteToggle={toggleMute}
+        onSendButton={stopListeningAndProcess}
       />
       {showUserConfig && <UserSettingsModal />}
       {showAgentEdit && <AgentEditModal />}
     </div>
   );
 }
+
+    

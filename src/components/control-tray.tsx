@@ -1,8 +1,9 @@
+
 'use client';
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Mic, MicOff, Play, Pause, Send, Loader } from 'lucide-react';
+import { Mic, MicOff, Play, Pause, Send, Loader, PhoneOff } from 'lucide-react';
 import type { ConnectionState } from '@/hooks/use-live-api';
 
 interface ControlTrayProps {
@@ -10,6 +11,7 @@ interface ControlTrayProps {
   isMuted: boolean;
   onMainButton: () => void;
   onMuteToggle: () => void;
+  onSendButton: () => void;
 }
 
 const MainButtonIcon = ({ state }: { state: ConnectionState }) => {
@@ -24,13 +26,29 @@ const MainButtonIcon = ({ state }: { state: ConnectionState }) => {
         case 'speaking':
             return <Pause className="h-10 w-10 fill-current" />;
         default:
-             return <Pause className="h-10 w-10 fill-current" />;
+             return <PhoneOff className="h-10 w-10 fill-current" />;
     }
 }
 
-export default function ControlTray({ connectionState, isMuted, onMainButton, onMuteToggle }: ControlTrayProps) {
+export default function ControlTray({ connectionState, isMuted, onMainButton, onMuteToggle, onSendButton }: ControlTrayProps) {
   const isConnected = connectionState !== 'disconnected';
+
+  const handleCenterClick = () => {
+    if (connectionState === 'listening') {
+      onSendButton();
+    } else {
+      onMainButton();
+    }
+  }
+  
+  const getCenterButtonAriaLabel = () => {
+    if (connectionState === 'disconnected') return 'Connect';
+    if (connectionState === 'listening') return 'Send';
+    return 'Disconnect';
+  }
+  
   const mainButtonDisabled = connectionState === 'connecting' || connectionState === 'processing' || connectionState === 'speaking';
+
 
   return (
     <footer className="w-full flex justify-center items-center p-4 absolute bottom-0 left-0 z-10">
@@ -46,16 +64,27 @@ export default function ControlTray({ connectionState, isMuted, onMainButton, on
           {isMuted ? <MicOff className="h-8 w-8" /> : <Mic className="h-8 w-8" />}
         </Button>
         <Button
-          onClick={onMainButton}
+          onClick={handleCenterClick}
           size="icon"
           disabled={mainButtonDisabled}
           className="rounded-full w-20 h-20 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transform hover:scale-105 transition-transform disabled:scale-100 disabled:bg-primary/70"
-          aria-label="Main Action"
+          aria-label={getCenterButtonAriaLabel()}
         >
           <MainButtonIcon state={connectionState} />
         </Button>
-        <div className="w-16 h-16" /> {/* Spacer to balance the layout */}
+         <Button 
+          variant="destructive" 
+          size="icon" 
+          onClick={onMainButton}
+          disabled={!isConnected}
+          className="rounded-full w-16 h-16"
+          aria-label={'Disconnect'}
+        >
+          <PhoneOff className="h-8 w-8" />
+        </Button>
       </div>
     </footer>
   );
 }
+
+    
