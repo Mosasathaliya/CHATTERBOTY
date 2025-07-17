@@ -9,7 +9,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import {generate} from 'genkit/generate';
+import {generate} from 'genkit';
 
 const SpeechToTextInputSchema = z.object({
   audioDataUri: z
