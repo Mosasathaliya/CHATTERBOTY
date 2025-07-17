@@ -48,13 +48,10 @@ const speechToTextFlow = ai.defineFlow(
   async ({audioDataUri, mimeType, onChunk}) => {
     const {stream, response} = ai.generateStream({
       model: 'googleai/gemini-1.5-pro-latest',
-      prompt: {
-        media: {
-          url: audioDataUri,
-          contentType: mimeType,
-        },
-        text: 'Transcribe the audio. The transcription should not include any introductory text or labels, only the spoken words.',
-      },
+      prompt: [
+        {media: {url: audioDataUri, contentType: mimeType}},
+        {text: 'Transcribe the audio. The transcription should not include any introductory text or labels, only the spoken words.'},
+      ],
       config: {
         temperature: 0.1,
       },
@@ -80,5 +77,3 @@ const speechToTextFlow = ai.defineFlow(
     return {text: fullText};
   }
 );
-
-    
