@@ -225,7 +225,6 @@ export function useLiveApi() {
       setError(null);
       toast({ title: "Connected", description: "You can start talking now." });
       conversationHistory.current = [];
-      isProcessingRef.current = true; // Block user input until initial message is played
       
       await processAndRespond("Hello!"); // Start with a greeting
       monitorUserSilence(stream);
