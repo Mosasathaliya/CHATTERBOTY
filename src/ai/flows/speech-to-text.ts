@@ -14,7 +14,7 @@ const SpeechToTextInputSchema = z.object({
   audioDataUri: z
     .string()
     .describe(
-      "A recording of speech, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+      "A recording of speech, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'"
     ),
   mimeType: z
     .string()
@@ -46,7 +46,7 @@ const speechToTextFlow = ai.defineFlow(
     outputSchema: SpeechToTextOutputSchema,
   },
   async ({audioDataUri, mimeType, onChunk}) => {
-    const {stream, response} = ai.generate({
+    const {stream, response} = ai.generateStream({
       model: 'googleai/gemini-1.5-pro-latest',
       prompt: {
         media: {
@@ -58,7 +58,6 @@ const speechToTextFlow = ai.defineFlow(
       config: {
         temperature: 0.1,
       },
-      stream: true,
     });
 
     let fullText = '';
