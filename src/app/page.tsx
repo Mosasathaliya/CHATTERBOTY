@@ -12,7 +12,7 @@ import ErrorOverlay from '@/components/error-overlay';
 
 export default function Home() {
   const { showUserConfig, showAgentEdit, setShowUserConfig } = useUIStore();
-  const { isConnected, isTalking, volume, error, connect, disconnect, toggleMute, isMuted } = useLiveApi();
+  const { connectionState, isTalking, volume, error, connect, disconnect, toggleMute, isMuted, stopListeningAndProcess } = useLiveApi();
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
@@ -27,6 +27,16 @@ export default function Home() {
   if (!isClient) {
     return null;
   }
+  
+  const handleMainButton = () => {
+    if (connectionState === 'disconnected') {
+      connect();
+    } else if (connectionState === 'listening') {
+      stopListeningAndProcess();
+    } else {
+      disconnect();
+    }
+  }
 
   return (
     <div className="flex flex-col items-center justify-between h-screen bg-background p-4 sm:p-6 lg:p-8 font-body overflow-hidden">
@@ -36,9 +46,9 @@ export default function Home() {
         <AgentAvatar isTalking={isTalking} volume={volume} />
       </main>
       <ControlTray 
-        isConnected={isConnected} 
+        connectionState={connectionState} 
         isMuted={isMuted}
-        onConnectToggle={isConnected ? disconnect : connect}
+        onMainButton={handleMainButton}
         onMuteToggle={toggleMute}
       />
       {showUserConfig && <UserSettingsModal />}
