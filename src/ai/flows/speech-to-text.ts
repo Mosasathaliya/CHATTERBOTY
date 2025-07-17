@@ -36,7 +36,7 @@ const speechToTextFlow = ai.defineFlow(
   },
   async ({audioDataUri}) => {
     const {output} = await ai.generate({
-      model: 'googleai/gemini-pro-vision',
+      model: 'googleai/gemini-1.5-pro-latest',
       prompt: [
         {
           media: {
