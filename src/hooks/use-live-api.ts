@@ -15,6 +15,7 @@ export function useLiveApi() {
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [transcribedText, setTranscribedText] = useState('');
   const { toast } = useToast();
   
   const { currentAgentId, getAgentById } = useAgentStore();
@@ -29,6 +30,7 @@ export function useLiveApi() {
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const mimeTypeRef = useRef<string>('');
 
   const cleanupAgentAudio = useCallback(() => {
     if (animationFrameId.current) {
@@ -60,6 +62,7 @@ export function useLiveApi() {
   const startListening = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'inactive' && !isMuted) {
       audioChunksRef.current = [];
+      setTranscribedText('');
       mediaRecorderRef.current.start();
       setConnectionState('listening');
     }
@@ -139,7 +142,13 @@ export function useLiveApi() {
     reader.onloadend = async () => {
       const base64data = reader.result as string;
       try {
-        const { text } = await speechToText({ audioDataUri: base64data });
+        const { text } = await speechToText({ 
+          audioDataUri: base64data,
+          mimeType: mimeTypeRef.current,
+          onChunk: (chunk) => {
+            setTranscribedText(prev => prev + chunk);
+          }
+        });
         if (text) {
           await processAndRespond(text);
         } else {
@@ -171,17 +180,21 @@ export function useLiveApi() {
       userMediaStreamRef.current = stream;
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       
-      mediaRecorderRef.current = new MediaRecorder(stream);
+      const options = { mimeType: 'audio/webm;codecs=opus' };
+      mediaRecorderRef.current = new MediaRecorder(stream, options);
+      mimeTypeRef.current = options.mimeType;
+
       mediaRecorderRef.current.ondataavailable = (event) => {
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
         }
       };
       mediaRecorderRef.current.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        if (audioBlob.size > 100) { // Check for minimal size to avoid processing empty blobs
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeTypeRef.current });
+        if (audioBlob.size > 1000) { // Check for minimal size to avoid processing empty blobs
           handleAudioProcessing(audioBlob);
         } else {
+          toast({ title: "No speech detected", description: "Recording was too short. Please try again.", variant: "default" });
           startListening();
         }
       };
@@ -200,7 +213,7 @@ export function useLiveApi() {
       toast({ title: "Error", description: errorMessage, variant: "destructive" });
       setConnectionState('disconnected');
     }
-  }, [toast, connectionState, processAndRespond, handleAudioProcessing, startListening]);
+  }, [toast, processAndRespond, handleAudioProcessing, startListening]);
 
   const disconnect = useCallback(() => {
     console.log('Disconnecting...');
@@ -218,6 +231,7 @@ export function useLiveApi() {
     }
     mediaRecorderRef.current = null;
     setConnectionState('disconnected');
+    setTranscribedText('');
     toast({ title: "Disconnected" });
   }, [toast, cleanupAgentAudio]);
 
@@ -227,11 +241,13 @@ export function useLiveApi() {
         if (newMuteState) {
             toast({ title: "Muted", description: "The agent can't hear you." });
             if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-              mediaRecorderRef.current.stop();
+              mediaRecorderRef.current.pause();
             }
         } else {
             toast({ title: "Unmuted", description: "The agent can hear you again." });
-            if(connectionState === 'listening' || connectionState === 'connected' || connectionState === 'speaking'){
+            if(mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') {
+                mediaRecorderRef.current.resume();
+            } else if (connectionState === 'listening' || connectionState === 'connected' || connectionState === 'speaking') {
                 startListening();
             }
         }
@@ -245,5 +261,5 @@ export function useLiveApi() {
     };
   }, [disconnect]);
 
-  return { connectionState, isMuted, isTalking: connectionState === 'speaking', volume, error, connect, disconnect, toggleMute, stopListeningAndProcess };
+  return { connectionState, isMuted, isTalking: connectionState === 'speaking', volume, error, connect, disconnect, toggleMute, stopListeningAndProcess, transcribedText };
 }

@@ -9,10 +9,11 @@ import AgentEditModal from '@/components/agent-edit-modal';
 import { useUIStore } from '@/hooks/use-ui-store';
 import { useLiveApi } from '@/hooks/use-live-api';
 import ErrorOverlay from '@/components/error-overlay';
+import TranscriptionDisplay from '@/components/transcription-display';
 
 export default function Home() {
   const { showUserConfig, showAgentEdit, setShowUserConfig } = useUIStore();
-  const { connectionState, isTalking, volume, error, connect, disconnect, toggleMute, isMuted, stopListeningAndProcess } = useLiveApi();
+  const { connectionState, isTalking, volume, error, connect, disconnect, toggleMute, isMuted, stopListeningAndProcess, transcribedText } = useLiveApi();
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
@@ -42,8 +43,9 @@ export default function Home() {
     <div className="flex flex-col items-center justify-between h-screen bg-background p-4 sm:p-6 lg:p-8 font-body overflow-hidden">
       {error && <ErrorOverlay message={error} />}
       <Header />
-      <main className="flex-grow flex items-center justify-center w-full">
+      <main className="flex-grow flex flex-col items-center justify-center w-full">
         <AgentAvatar isTalking={isTalking} volume={volume} />
+        <TranscriptionDisplay text={transcribedText} connectionState={connectionState} />
       </main>
       <ControlTray 
         connectionState={connectionState} 
