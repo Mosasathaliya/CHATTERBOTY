@@ -3,7 +3,7 @@
  * @fileOverview A flow for converting speech to text.
  *
  * - speechToText - A function that takes audio data and returns the transcribed text.
- * - SpeechToTextInput - The input type for the speechToText function.
+ * - SpeechToTextInput - The input type for the speechToTtext function.
  * - SpeechToTextOutput - The return type for the speechToText function.
  */
 
@@ -35,10 +35,8 @@ const speechToTextFlow = ai.defineFlow(
     outputSchema: SpeechToTextOutputSchema,
   },
   async ({audioDataUri}) => {
-    const model = ai.getModel('googleai/gemini-pro');
-
     const {output} = await ai.generate({
-      model,
+      model: 'googleai/gemini-pro',
       prompt: [
         {
           media: {
